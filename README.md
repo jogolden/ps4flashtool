@@ -29,7 +29,7 @@ Also, when the extract option is enabled, the files will be extracted after the 
 
 __This release includes no keys and I will never release keys.__
 
-You must create your own keyfile if you have keys. Look at keymgr.h for the format.  
+You must create your own keyfile if you have keys. Look at `keymgr.h` for the format.  
 Look at the fail0verflow article if you want to try and derive the keys yourself.
 There may be some bugs with this release.
 
