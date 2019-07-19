@@ -173,7 +173,7 @@ int arzl_decompress(unsigned char *buffer, unsigned int buflen, const unsigned c
     v10 = -1;
     for ( v11 = 0; v8 != v5; *v20 = v22 )
     {
-      v12 = (v9 & 0xFFFFF8FF) | (((uint8_t)v8 & 7) << 8);
+      v12 = (v9 & 0xFFFFF8FF) | (((uint8_t)((uint64_t)v8) & 7) << 8);
       v9 = 1;
       v13 = &v109[255 * ((v12 >> v6) & 7)];
       do
@@ -263,7 +263,7 @@ int arzl_decompress(unsigned char *buffer, unsigned int buflen, const unsigned c
           goto LABEL_82;
         }
 LABEL_32:
-        v36 = &v109[32 * v28 | 8 * (((uint32_t)v8 << v28) & 3) | (v11 & 7)];
+        v36 = &v109[32 * v28 | 8 * (((uint32_t)(uint64_t)v8 << v28) & 3) | (v11 & 7)];
         v104 = v28 - 3;
         v37 = (uint8_t)v36[2984];
         if ( !(v10 >> 24) )

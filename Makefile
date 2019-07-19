@@ -19,4 +19,4 @@ $(ODIR):
 
 .PHONY: clean
 clean: 
-	rm $(TARGET) build/*
+	rm -f $(TARGET) build/*

@@ -72,6 +72,9 @@ struct eap_kernel_hdr {
     unsigned int length;
 } __attribute__((packed));
 
+struct bldr_hdr *flash_locate_emc_ipl(unsigned char *flashdata, int forcehdr);
+struct bldr_hdr *flash_locate_eap_kbl(unsigned char *flashdata);
+
 int verify_emc_ipl(unsigned char *flashdata);
 int decrypt_emc_ipl(unsigned char *flashdata, unsigned char **data, unsigned int *length);
 int replace_emc_ipl(unsigned char *flashdata, unsigned char *newipl, int length);

@@ -160,6 +160,36 @@ unsigned char *load_flashdump(char *flashfile) {
     return data;
 }
 
+int dump_console_info(unsigned char *flashdata, unsigned char *path) {
+    struct nvs_console_info cinfo;
+    char macaddress[6];
+    FILE *fp = NULL;
+    int i;
+
+    // read console info and mac address
+    nvs_read(flashdata, 0, 2, NVS_VAR_BLOCK2_CONSOLE_INF0, sizeof(cinfo), (unsigned char *)&cinfo);
+    nvs_read(flashdata, 0, 0, NVS_VAR_BLOCK0_MAC_ADDRESS, sizeof(macaddress), macaddress);
+
+    fp = fopen(path, "w");
+    if(!fp) {
+        return 1;
+    }
+
+    fprintf(fp, "motherboard serial: %.*s\n", (int)sizeof(cinfo.moboserial), cinfo.moboserial);
+    fprintf(fp, "serial: %.*s\n", (int)sizeof(cinfo.serial), cinfo.serial);
+    fprintf(fp, "model: %.*s\n", (int)sizeof(cinfo.model), cinfo.model);
+    fprintf(fp, "mac address: ");
+    for(i = 0; i < sizeof(macaddress); i++) {
+        fprintf(fp, "%02X%c", macaddress[i] & 0xFF, (i == sizeof(macaddress) - 1) ? '\n' : ':');
+    }
+
+    fprintf(fp, "\n");
+
+    fclose(fp);
+
+    return 0;
+}
+
 void print_flashinfo(unsigned char *flashdata) {
     struct nvs_console_info cinfo;
     char macaddress[6];
@@ -214,6 +244,34 @@ int extract_flashdump(unsigned char *flashdata, char *extractdir) {
     
     printf("extracted EAP KBL to '%s'!\n", path);
 
+    snprintf(path, sizeof(path), "%s/%s", extractdir, "consoleinfo.txt");
+    dump_console_info(flashdata, path);
+    
+    printf("wrote console info to '%s'!\n", path);
+
+    return 0;
+}
+
+int rawextract_flashdump(unsigned char *flashdata, char *extractdir) {
+    struct bldr_hdr *emc_blhdr = flash_locate_emc_ipl(flashdata, 0);
+    struct bldr_hdr *eap_blhdr = flash_locate_eap_kbl(flashdata);
+    char path[512];
+
+    snprintf(path, sizeof(path), "%s/%s", extractdir, "emcipl.bin");
+    dumpbin(path, (unsigned char *)emc_blhdr, emc_blhdr->hdr_len + emc_blhdr->body_len);
+
+    printf("raw extracted EMC IPL to '%s'!\n", path);
+
+    snprintf(path, sizeof(path), "%s/%s", extractdir, "eapkbl.elf");
+    dumpbin(path, (unsigned char *)eap_blhdr, eap_blhdr->hdr_len + eap_blhdr->body_len);
+
+    printf("raw extracted EAP KBL to '%s'!\n", path);
+
+    snprintf(path, sizeof(path), "%s/%s", extractdir, "consoleinfo.txt");
+    dump_console_info(flashdata, path);
+    
+    printf("wrote console info to '%s'!\n", path);
+
     return 0;
 }
 
@@ -222,7 +280,7 @@ void print_usage() {
 
     printf("Usage: flashtool [option(s)]\n");
     printf("Examples:\n");
-    printf("\tflashtool --extract dumps -i flashdump.bin\n");
+    printf("\tflashtool -k CXD42G.keys --extract dumps -i flashdump.bin\n");
     printf("\tflashtool --emcipl patchedipl.bin -k CXD44G.keys --input flashdump.bin --output flashout.bin\n");
     printf("\tflashtool --eapkbl patchedkbl.bin -k cec_h4x_sram_dmp_CXD36G.keys --input flashdump.bin --output flashout.bin\n");
     printf("\tflashtool -k CXD42G.keys -v -n --input flashdump.bin\n");
@@ -248,6 +306,7 @@ void print_usage() {
     PRINT_OPTION("n", "noverify", 0, "", "do not verify the flash signatures")
     PRINT_OPTION("k", "keyfile", 0, "", "override the default key file")
     PRINT_LONG_OPTION("extract", 1, "dir", "extract files to directory")
+    PRINT_LONG_OPTION("rawextract", 1, "dir", "raw extract files to directory")
     PRINT_LONG_OPTION("emcipl", 1, "emcipl", "replace EMC IPL (initial program loader)")
     PRINT_LONG_OPTION("eapkbl", 1, "eapkbl", "replace EAP KBL (kernel boot loader)")
     PRINT_LONG_OPTION("eapkern", 1, "input,output", "decrypt the EAP kernel")
@@ -263,6 +322,7 @@ int main(int argc, char **argv) {
     char *flashfile = NULL;
     char *flashout = NULL;
     char *extractdir = NULL;
+    char *rawextractdir = NULL;
     char *emcipl = NULL;
     char *eapkbl = NULL;
     char *eapkern = NULL;
@@ -330,6 +390,13 @@ int main(int argc, char **argv) {
             }
             extractdir = arg;
             i++;
+        } else if(!strcmp(opt, "rawextract")) {
+            if(!arg) {
+                printf("error: invalid raw extract directory argument!\n");
+                return 1;
+            }
+            rawextractdir = arg;
+            i++;
         } else if(!strcmp(opt, "emcipl")) {
             if(!arg) {
                 printf("error: invalid emcipl argument!\n");
@@ -393,16 +460,6 @@ int main(int argc, char **argv) {
         goto end;
     }
 
-    // load the keys
-    printf("loading key file '%s' ...\n", keyfile);
-    if(keymgr_loadkeys(keyfile)) {
-        return 1;
-    }
-
-    if(verbose) {
-        keymgr_printkeys();
-    }
-
     if(!flashfile) {
         printf("error: please specify a PlayStation 4 flash file!\n");
         goto end;
@@ -419,6 +476,25 @@ int main(int argc, char **argv) {
 
     if(verbose) {
         find_and_print_slb2_info(flashdata);
+    }
+    
+    // raw extract does not require a key file so do it before
+    if(rawextractdir) {
+        if(rawextract_flashdump(flashdata, rawextractdir)) {
+            printf("error: raw extract failed!\n");
+        }
+
+        goto end;
+    }
+
+    // load the keys
+    printf("loading key file '%s' ...\n", keyfile);
+    if(keymgr_loadkeys(keyfile)) {
+        return 1;
+    }
+
+    if(verbose) {
+        keymgr_printkeys();
     }
     
     // check flash
